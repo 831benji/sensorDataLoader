@@ -25,6 +25,10 @@ PORT = int(os.getenv('VCAP_APP_PORT', 8000))
 os.chdir('static')
 
 httpd = Server(("", PORT), Handler)
+
+def loadData():
+	print('inside this function!!!')
+	
 try:
   print("Start serving at port %i" % PORT)
   r = requests.get('http://sct.gpacsys.net/query.php?username=dford&password=dford1234&logtype=DATA&format=$2&start_year=2015&start_month=0&start_day=0&start_hour=00&start_min=00&start_sec=00&end_year=2015&end_month=2&end_day=28&end_hour=23&end_min=59&end_sec=59')
@@ -82,16 +86,19 @@ try:
 
   print "Created database at {0}".format(baseUri)
 
-  for bulkDocs in docs:
-  	response = requests.post(
-  		baseUri+'/_bulk_docs',
-  		data=json.dumps({
-        "docs": docs[arrayCounter]
-        }),
-        auth=creds,
-        headers={"Content-Type": "application/json"}
-        )
-  	arrayCounter += 1
+  # arrayCounter = 0
+  # for bulkDocs in docs:
+  # 	response = requests.post(
+  # 		baseUri+'/_bulk_docs',
+  # 		data=json.dumps({
+  #       "docs": docs[arrayCounter]
+  #       }),
+  #       auth=creds,
+  #       headers={"Content-Type": "application/json"}
+  #       )
+  # 	arrayCounter += 1
+
+  loadData()
 
   
 
@@ -100,4 +107,3 @@ try:
 except KeyboardInterrupt:
   pass
 httpd.server_close()
-
