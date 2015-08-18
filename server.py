@@ -16,6 +16,22 @@ username = 'bsp'
 password = 'demoPass'
 db_name = 'july'
 
+gpac_username = 'dford'
+gpac_password = 'dford1234'
+log_type = 'DATA'
+start_year = '2015'
+start_month = '2'
+start_day = '27'
+start_hour = '23'
+start_min = '00'
+start_sec = '00'
+end_year = '2015'
+end_month = '2' 
+end_day = '28'
+end_hour = '23'
+end_min = '59'
+end_sec = '59'
+
 baseUri = "https://{0}.cloudant.com/{1}".format(username, db_name)
 
 creds = (username, password)
@@ -30,7 +46,38 @@ httpd = Server(("", PORT), Handler)
 def loadData():
 	print('inside this function!!! - ')
 	scheduleCounter = 0
-	r = requests.get('http://sct.gpacsys.net/query.php?username=dford&password=dford1234&logtype=DATA&format=$2&start_year=2015&start_month=0&start_day=0&start_hour=00&start_min=00&start_sec=00&end_year=2015&end_month=2&end_day=28&end_hour=23&end_min=59&end_sec=59')
+	r = requests.get(
+		'http://sct.gpacsys.net/query.php?username='+
+		gpac_username
+		+'&password='+
+		gpac_password
+		+'&logtype='+
+		log_type
+		+'&format=$2&start_year='+
+		start_year
+		+'&start_month='+
+		start_month
+		+'&start_day='+
+		start_day
+		+'&start_hour='+
+		start_hour
+		+'&start_min='+
+		start_min
+		+'&start_sec='+
+		start_sec
+		+'&end_year='+
+		end_year
+		+'&end_month='+
+		end_month
+		+'&end_day='+
+		end_day
+		+'&end_hour='+
+		end_hour
+		+'&end_min='+
+		end_min
+		+'&end_sec='+
+		end_sec
+		)
 	f = open(csvFileName, 'w')
 	f.write(r.text)
 	f.close()
@@ -48,6 +95,7 @@ def loadData():
 	# establish counters to break up the loads into smaller chunks
 	arrayCounter = 0
 	docsCounter = 0
+	loopCounter = 0
 
 	# set the fieldnames as the dictionary keys
 	reader = csv.DictReader(f, fieldnames)
@@ -79,6 +127,10 @@ def loadData():
 
 	print docs
 
+	print 'this is loop number'
+	print loopCounter
+	loopCounter += 1
+
 	response = requests.put(
 		baseUri,
 		auth=creds
@@ -98,11 +150,12 @@ def loadData():
 	      )
 		arrayCounter += 1
 
-	# schedule.every(10).seconds.do(loadData)
+
 
 try:
   print("Start serving at port %i" % PORT)
-  
+
+  # schedule.every(10).seconds.do(loadData)
 
   loadData()
 
