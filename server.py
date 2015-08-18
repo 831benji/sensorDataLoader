@@ -20,21 +20,25 @@ db_name = 'july'
 
 scheduler = sched.scheduler(time.time, time.sleep)
 
+currentTime = time.gmtime()
+
 gpac_username = 'dford'
 gpac_password = 'dford1234'
 log_type = 'DATA'
 start_year = '2015'
-start_month = '2'
-start_day = '28'
-start_hour = '23'
-start_min = '30'
+start_month = '7'
+start_day = '18'
+start_hour = '00'
+start_min = '00'
 start_sec = '00'
 end_year = '2015'
-end_month = '2' 
-end_day = '28'
+end_month = '7' 
+end_day = '18'
 end_hour = '23'
 end_min = '59'
 end_sec = '59'
+
+loopCounter = 0
 
 baseUri = "https://{0}.cloudant.com/{1}".format(username, db_name)
 
@@ -48,8 +52,16 @@ os.chdir('static')
 httpd = Server(("", PORT), Handler)
 
 def loadData():
-	print('inside this function!!! - ')
-	scheduleCounter = 0
+	print('this is the current time:')
+	currentTime = time.gmtime()
+	print currentTime
+	end_year = str(currentTime.tm_year)
+	end_month = str(currentTime.tm_mon)
+	end_day = str(currentTime.tm_mday)
+	end_hour = str(currentTime.tm_hour)
+	end_min = str(currentTime.tm_min)
+	end_sec = str(currentTime.tm_sec)
+	
 	r = requests.get(
 		'http://sct.gpacsys.net/query.php?username='+
 		gpac_username
@@ -86,6 +98,19 @@ def loadData():
 	f.write(r.text)
 	f.close()
 
+	global start_year
+	start_year = end_year
+	global start_month
+	start_month = end_month
+	global start_day
+	start_day = end_day
+	global start_hour
+	start_hour = end_hour
+	global start_min
+	start_min = end_min
+	global start_sec
+	start_sec = end_sec
+
 	# open csv with data (will be a HTTP call to GPAC in the future)
 	f = open(csvFileName, 'rU')
 	csv_f = csv.reader(f)
@@ -99,7 +124,6 @@ def loadData():
 	# establish counters to break up the loads into smaller chunks
 	arrayCounter = 0
 	docsCounter = 0
-	loopCounter = 0
 
 	# set the fieldnames as the dictionary keys
 	reader = csv.DictReader(f, fieldnames)
@@ -133,6 +157,7 @@ def loadData():
 
 	print 'this is loop number'
 	print loopCounter
+	global loopCounter
 	loopCounter += 1
 
 	response = requests.put(
@@ -154,9 +179,8 @@ def loadData():
 	      )
 		arrayCounter += 1
 
-	scheduler.enter(10, 1, loadData, ())
+	scheduler.enter(600, 1, loadData, ())
 	scheduler.run()
-
 
 
 try:
@@ -168,8 +192,6 @@ try:
   # sched.add_interval_job(loadData, seconds=30)
 
   loadData()
-
-  
 
 
   httpd.serve_forever()
