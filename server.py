@@ -2,7 +2,9 @@ import os
 import requests
 import json
 import csv
-# import schedule
+import sched
+import time
+# from apscheduler.scheduler import Scheduler
 try:
   from SimpleHTTPServer import SimpleHTTPRequestHandler as Handler
   from SocketServer import TCPServer as Server
@@ -16,14 +18,16 @@ username = 'bsp'
 password = 'demoPass'
 db_name = 'july'
 
+scheduler = sched.scheduler(time.time, time.sleep)
+
 gpac_username = 'dford'
 gpac_password = 'dford1234'
 log_type = 'DATA'
 start_year = '2015'
 start_month = '2'
-start_day = '27'
+start_day = '28'
 start_hour = '23'
-start_min = '00'
+start_min = '30'
 start_sec = '00'
 end_year = '2015'
 end_month = '2' 
@@ -150,12 +154,18 @@ def loadData():
 	      )
 		arrayCounter += 1
 
+	scheduler.enter(10, 1, loadData, ())
+	scheduler.run()
+
 
 
 try:
   print("Start serving at port %i" % PORT)
 
   # schedule.every(10).seconds.do(loadData)
+  # sched = Scheduler()
+  # sched.start()
+  # sched.add_interval_job(loadData, seconds=30)
 
   loadData()
 
