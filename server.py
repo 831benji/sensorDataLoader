@@ -16,17 +16,19 @@ csvFileName = 'output.csv'
 JSONconfigFile = 'dataConfig.csv'
 username = 'bsp'
 password = 'demoPass'
-db_name = 'july'
+db_name = 'testing_database'
 
 scheduler = sched.scheduler(time.time, time.sleep)
 
 currentTime = time.gmtime()
 
+first_time_flag = true;
+
 gpac_username = 'dford'
 gpac_password = 'dford1234'
 log_type = 'DATA'
 start_year = '2015'
-start_month = '7'
+start_month = '8'
 start_day = '18'
 start_hour = '00'
 start_min = '00'
@@ -52,6 +54,36 @@ os.chdir('static')
 httpd = Server(("", PORT), Handler)
 
 def loadData():
+	global start_year
+	global start_month
+	global start_day
+	global start_hour
+	global start_min
+	global start_sec
+
+	currentTime = time.gmtime()
+	start_year = str(currentTime.tm_year)
+	start_month = str(currentTime.tm_mon)
+	start_day = str(currentTime.tm_mday)
+	start_hour = str((currentTime.tm_hour+24))
+	start_min = str(currentTime.tm_hour)
+	start_sec = str(currentTime.tm_year)
+
+	if first_time_flag:
+		response = requests.put(
+		baseUri,
+		auth=creds
+		)
+		print "Created database at {0}".format(baseUri)
+		response = requests.post(
+			baseUri+'/_cloudant_date',
+			data=json.dumps({
+	      "cloudant_year": start_year
+	      }),
+	      auth=creds,
+	      headers={"Content-Type": "application/json"}
+	      )
+	totalDocs = 0
 	print('this is the current time:')
 	currentTime = time.gmtime()
 	print currentTime
@@ -144,6 +176,7 @@ def loadData():
 		# append the jsonDocument to the array of json docs
 		docs[arrayCounter].append(jsonDocument)
 		docsCounter += 1
+		totalDocs +=1 
 
 		# if the number of docs gets larger than the bulk_load size, break into a new chunk
 		if docsCounter > 999:
@@ -153,12 +186,14 @@ def loadData():
 
 		# print jsonDocument
 
-	print docs
+	# print docs
 
 	print 'this is loop number'
 	print loopCounter
 	global loopCounter
 	loopCounter += 1
+
+	print 'total docs = '+str(totalDocs)
 
 	response = requests.put(
 		baseUri,
