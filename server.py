@@ -4,6 +4,7 @@ import json
 import csv
 import sched
 import time
+import string
 # from apscheduler.scheduler import Scheduler
 try:
   from SimpleHTTPServer import SimpleHTTPRequestHandler as Handler
@@ -16,27 +17,34 @@ csvFileName = 'output.csv'
 JSONconfigFile = 'dataConfig.csv'
 username = 'bsp'
 password = 'demoPass'
-db_name = 'july'
+db_name = 'august'
 
 scheduler = sched.scheduler(time.time, time.sleep)
 
-currentTime = time.gmtime()
+os.environ['TZ'] = 'US/Pacific'
+time.tzset()
+currentTime = time.localtime()
 
 gpac_username = 'dford'
 gpac_password = 'dford1234'
+
 log_type = 'DATA'
+
 start_year = '2015'
-start_month = '7'
+start_month = '08'
 start_day = '18'
 start_hour = '00'
 start_min = '00'
 start_sec = '00'
-end_year = '2015'
-end_month = '7' 
-end_day = '18'
-end_hour = '23'
-end_min = '59'
-end_sec = '59'
+
+end_year = str(currentTime.tm_year)
+end_month = str(currentTime.tm_mon)
+end_day = str(currentTime.tm_mday)
+end_hour = str(currentTime.tm_hour)
+end_min = str(currentTime.tm_min)
+end_sec = str(currentTime.tm_sec)
+
+restart_flag = 1
 
 loopCounter = 0
 
@@ -52,9 +60,33 @@ os.chdir('static')
 httpd = Server(("", PORT), Handler)
 
 def loadData():
-	print('this is the current time:')
-	currentTime = time.gmtime()
-	print currentTime
+	totalDocs = 0
+
+	global start_year
+	global start_month
+	global start_day
+	global start_hour
+	global start_min
+	global start_sec
+
+	response = requests.put(
+		baseUri,
+		auth=creds
+		)
+
+	print "Created database at {0}".format(baseUri)
+
+	if restart_flag:
+		getCloudantDate()
+
+	startTimeTuple = (int(start_year), int(start_month), int(start_day), int(start_hour), int(start_min), int(start_sec), 0, 0, -1)
+	startTime = time.struct_time(startTimeTuple)
+	print('this is the start time - '+str(time.asctime(startTime)))
+
+	os.environ['TZ'] = 'US/Pacific'
+	time.tzset()
+	currentTime = time.localtime()
+	print('this is the current time - '+str(time.asctime(currentTime)) )
 	end_year = str(currentTime.tm_year)
 	end_month = str(currentTime.tm_mon)
 	end_day = str(currentTime.tm_mday)
@@ -98,17 +130,11 @@ def loadData():
 	f.write(r.text)
 	f.close()
 
-	global start_year
 	start_year = end_year
-	global start_month
 	start_month = end_month
-	global start_day
 	start_day = end_day
-	global start_hour
 	start_hour = end_hour
-	global start_min
 	start_min = end_min
-	global start_sec
 	start_sec = end_sec
 
 	# open csv with data (will be a HTTP call to GPAC in the future)
@@ -135,6 +161,8 @@ def loadData():
 	# get field names from first row of JSONconfigFile
 	JSONfieldnames = jsonConfig.next()
 
+	lastDoc = {}
+
 	for row in reader:
 		jsonDocument = {}
 		for fieldname in JSONfieldnames:
@@ -144,6 +172,7 @@ def loadData():
 		# append the jsonDocument to the array of json docs
 		docs[arrayCounter].append(jsonDocument)
 		docsCounter += 1
+		totalDocs +=1 
 
 		# if the number of docs gets larger than the bulk_load size, break into a new chunk
 		if docsCounter > 999:
@@ -152,36 +181,118 @@ def loadData():
 			docs.append([])
 
 		# print jsonDocument
+		lastDoc = jsonDocument
 
-	print docs
+	# print docs
+	print lastDoc
 
 	print 'this is loop number'
 	print loopCounter
 	global loopCounter
 	loopCounter += 1
 
-	response = requests.put(
-		baseUri,
-		auth=creds
-		)
-
-	print "Created database at {0}".format(baseUri)
+	print 'total docs = '+str(totalDocs)
 
 	arrayCounter = 0
 	for bulkDocs in docs:
 		response = requests.post(
 			baseUri+'/_bulk_docs',
 			data=json.dumps({
-	      "docs": docs[arrayCounter]
-	      }),
-	      auth=creds,
-	      headers={"Content-Type": "application/json"}
-	      )
+				"docs": docs[arrayCounter]
+				}),
+			auth=creds,
+			headers={"Content-Type": "application/json"}
+			)
 		arrayCounter += 1
+
+	postCloudantDate()
 
 	scheduler.enter(600, 1, loadData, ())
 	scheduler.run()
 
+# pull start date from Cloudant if exists
+def getCloudantDate():
+	global start_year
+	global start_month
+	global start_day
+	global start_hour
+	global start_min
+	global start_sec
+
+	design_doc = requests.get(
+		baseUri+'/_design/views',
+		auth=creds
+		)
+
+	if '_id' in json.loads(design_doc.text):
+		cloudant_date_doc = requests.get(
+			baseUri+'/_design/views/_view/dateKeeper?descending=true&limit=1',
+			auth=creds
+			)
+		cloudant_date = json.loads(cloudant_date_doc.text)["rows"][0]["key"]
+		date_and_time = string.split(cloudant_date, " ")
+		cDate = string.split(date_and_time[0], "-")
+		cTime = string.split(date_and_time[1], ":")
+		start_year = cDate[0]
+		print 'this is the start_year: '+start_year
+		start_month = cDate[1]
+		print 'this is the start_year: '+start_month
+		start_day = cDate[2]
+		print 'this is the start_year: '+start_day
+		start_hour = cTime[0]
+		print 'this is the start_year: '+start_hour
+		start_min = cTime[1]
+		print 'this is the start_year: '+start_min
+		start_sec = cTime[2]
+		print 'this is the start_year: '+start_sec
+
+		print 'here is the date '+ start_year+start_month+start_day+start_hour+start_min+start_sec
+	else:
+		design_doc = requests.put(
+			baseUri+'/_design/views',
+			data=json.dumps({
+				"_id": "_design/views",
+				"views": {
+				"parse_date": {
+				"map": "function (doc) { if (doc.Timestamp) { emit(doc.Timestamp, doc); } }"
+				},
+				"dateKeeper": {
+				"map": "function (doc) { if (doc.cloudant_date) { emit(doc.cloudant_date) } }"
+				}
+				}
+				}),
+			auth=creds,
+			headers={"Content-Type": "application/json"}
+			)
+
+		cloudant_date_doc = requests.post(
+			baseUri,
+			data=json.dumps({
+				"cloudant_date": start_year+"-"+start_month+"-"+start_day+" "+start_hour+":"+start_min+":"+start_sec
+				}),
+			auth=creds,
+			headers={"Content-Type": "application/json"}
+			)
+
+def postCloudantDate():
+	#code
+	global end_year
+	global end_month
+	global end_day
+	global end_hour
+	global end_min
+	global end_sec
+
+	cloudant_date_doc = requests.post(
+		baseUri,
+		data=json.dumps({
+			"cloudant_date": end_year+"-"+end_month+"-"+end_day+" "+end_hour+":"+end_min+":"+end_sec
+			}),
+		auth=creds,
+		headers={"Content-Type": "application/json"}
+		)
+
+	print cloudant_date_doc.text
 
 try:
   print("Start serving at port %i" % PORT)
