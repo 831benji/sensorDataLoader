@@ -35,7 +35,7 @@ start_month = '08'
 start_day = '00'
 start_hour = '00'
 start_min = '00'
-start_sec = '0'
+start_sec = '00'
 
 end_year = str(currentTime.tm_year)
 end_month = str(currentTime.tm_mon)
@@ -207,7 +207,7 @@ def loadData():
 
 	postCloudantDate([end_year, end_month, end_day, end_hour, end_min, end_sec])
 
-	scheduler.enter(30, 1, loadData, ())
+	scheduler.enter(600, 1, loadData, ())
 	scheduler.run()
 
 # pull start date from Cloudant if exists
@@ -274,7 +274,8 @@ def getCloudantDate():
 		cloudant_date_doc = requests.post(
 			baseUri,
 			data=json.dumps({
-				"cloudant_date": start_year+"-"+start_month+"-"+start_day+" "+start_hour+":"+start_min+":"+start_sec
+				"cloudant_date": 
+				start_year+"-"+start_month+"-"+start_day+" "+start_hour+":"+start_min+":"+start_sec
 				}),
 			auth=creds,
 			headers={"Content-Type": "application/json"}
