@@ -5,7 +5,6 @@ import csv
 import sched
 import time
 import string
-# from apscheduler.scheduler import Scheduler
 try:
   from SimpleHTTPServer import SimpleHTTPRequestHandler as Handler
   from SocketServer import TCPServer as Server
@@ -15,9 +14,10 @@ except ImportError:
 
 csvFileName = 'output.csv'
 JSONconfigFile = 'dataConfig.csv'
-username = 'bsp'
-password = 'demoPass'
-db_name = 'bus_data'
+username = 'bsp-goldengate'
+password = 'chicken8898'
+db_name = ['bus_957_ggtbus1', 'bus_956_ggtbus2']
+port_num = ['166.184.185.1:40001', '166.184.185.159:40001']
 
 scheduler = sched.scheduler(time.time, time.sleep)
 
@@ -25,8 +25,8 @@ os.environ['TZ'] = 'US/Pacific'
 time.tzset()
 currentTime = time.localtime()
 
-gpac_username = 'dford'
-gpac_password = 'dford1234'
+gpac_username = 'benperl'
+gpac_password = 'benperl1'
 
 log_type = 'DATA'
 
@@ -48,7 +48,7 @@ restart_flag = 1
 
 loopCounter = 0
 
-baseUri = "https://{0}.cloudant.com/{1}".format(username, db_name)
+baseUri = "https://{0}.cloudant.com/{1}".format(username, db_name[0])
 
 creds = (username, password)
 
@@ -59,159 +59,138 @@ os.chdir('static')
 
 httpd = Server(("", PORT), Handler)
 
-def loadData():
-	totalDocs = 0
+def loadData(port_num_var, db_name_var):
+	for pI in range(0, len(port_num_var)):
 
-	global start_year
-	global start_month
-	global start_day
-	global start_hour
-	global start_min
-	global start_sec
+		totalDocs = 0
 
-	response = requests.put(
-		baseUri,
-		auth=creds
-		)
+		global start_year
+		global start_month
+		global start_day
+		global start_hour
+		global start_min
+		global start_sec
 
-	print "Created database at {0}".format(baseUri)
+		baseUri = "https://{0}.cloudant.com/{1}".format(username, db_name_var[pI])
 
-	if restart_flag:
-		getCloudantDate()
-
-	startTimeTuple = (int(start_year), int(start_month), int(start_day), int(start_hour), int(start_min), int(start_sec), 0, 0, -1)
-	startTime = time.struct_time(startTimeTuple)
-	print('this is the start time - '+str(time.asctime(startTime)))
-
-	os.environ['TZ'] = 'US/Pacific'
-	time.tzset()
-	currentTime = time.localtime()
-	print('this is the current time - '+str(time.asctime(currentTime)) )
-	end_year = str(currentTime.tm_year)
-	end_month = str(currentTime.tm_mon)
-	end_day = str(currentTime.tm_mday)
-	end_hour = str(currentTime.tm_hour)
-	end_min = str(currentTime.tm_min)
-	end_sec = str(currentTime.tm_sec)
-	
-	r = requests.get(
-		'http://sct.gpacsys.net/query.php?username='+
-		gpac_username
-		+'&password='+
-		gpac_password
-		+'&logtype='+
-		log_type
-		+'&format=$2&start_year='+
-		start_year
-		+'&start_month='+
-		start_month
-		+'&start_day='+
-		start_day
-		+'&start_hour='+
-		start_hour
-		+'&start_min='+
-		start_min
-		+'&start_sec='+
-		start_sec
-		+'&end_year='+
-		end_year
-		+'&end_month='+
-		end_month
-		+'&end_day='+
-		end_day
-		+'&end_hour='+
-		end_hour
-		+'&end_min='+
-		end_min
-		+'&end_sec='+
-		end_sec
-		)
-	f = open(csvFileName, 'w')
-	f.write(r.text)
-	f.close()
-
-	start_year = end_year
-	start_month = end_month
-	start_day = end_day
-	start_hour = end_hour
-	start_min = end_min
-	start_sec = end_sec
-
-	# open csv with data (will be a HTTP call to GPAC in the future)
-	f = open(csvFileName, 'rU')
-	csv_f = csv.reader(f)
-
-	# get field names from first row of csv file
-	fieldnames = csv_f.next()
-
-	# establish the array to hold the bulk load documents
-	docs = [[]]
-
-	# establish counters to break up the loads into smaller chunks
-	arrayCounter = 0
-	docsCounter = 0
-
-	# set the fieldnames as the dictionary keys
-	reader = csv.DictReader(f, fieldnames)
-
-	# read JSONconfigFile
-	jsonF = open(JSONconfigFile, 'rU')
-	jsonConfig = csv.reader(jsonF)
-
-	# get field names from first row of JSONconfigFile
-	JSONfieldnames = jsonConfig.next()
-
-	lastDoc = {}
-
-	for row in reader:
-		jsonDocument = {}
-		for fieldname in JSONfieldnames:
-			if fieldname in row:
-				jsonDocument[fieldname] = row[fieldname]
-
-		# append the jsonDocument to the array of json docs
-		docs[arrayCounter].append(jsonDocument)
-		docsCounter += 1
-		totalDocs +=1 
-
-		# if the number of docs gets larger than the bulk_load size, break into a new chunk
-		if docsCounter > 999:
-			arrayCounter += 1
-			docsCounter = 0
-			docs.append([])
-
-		# print jsonDocument
-		lastDoc = jsonDocument
-
-	# print docs
-	print lastDoc
-
-	print 'this is loop number'
-	print loopCounter
-	global loopCounter
-	loopCounter += 1
-
-	print 'total docs = '+str(totalDocs)
-
-	arrayCounter = 0
-	for bulkDocs in docs:
-		response = requests.post(
-			baseUri+'/_bulk_docs',
-			data=json.dumps({
-				"docs": docs[arrayCounter]
-				}),
-			auth=creds,
-			headers={"Content-Type": "application/json"}
+		response = requests.put(
+			baseUri,
+			auth=creds
 			)
-		arrayCounter += 1
+		
+		cloudantDateTime = getCloudantDate(db_name_var[pI])
 
-	postCloudantDate([end_year, end_month, end_day, end_hour, end_min, end_sec])
+		print 'Last run was at: '
+		print cloudantDateTime
 
-	scheduler.enter(600, 1, loadData, ())
-	scheduler.run()
+		startTimeTuple = (int(cloudantDateTime[0]), int(cloudantDateTime[1]), int(cloudantDateTime[2]), int(cloudantDateTime[3]), int(cloudantDateTime[4]), int(cloudantDateTime[5]), 0, 0, -1)
+		startTime = time.struct_time(startTimeTuple)
+
+		os.environ['TZ'] = 'US/Pacific'
+		time.tzset()
+		currentTime = time.localtime()
+
+		end_year = str(currentTime.tm_year)
+		end_month = str(currentTime.tm_mon)
+		end_day = str(currentTime.tm_mday)
+		end_hour = str(currentTime.tm_hour)
+		end_min = str(currentTime.tm_min)
+		end_sec = str(currentTime.tm_sec)
+
+		gpac_url = 'http://'+port_num_var[pI]+'/query.php?username='+gpac_username+'&password='+gpac_password+'&logtype='+log_type+'&format=$2&start_year='+start_year+'&start_month='+start_month+'&start_day='+start_day+'&start_hour='+start_hour+'&start_min='+start_min+'&start_sec='+start_sec+'&end_year='+end_year+'&end_month='+end_month+'&end_day='+end_day+'&end_hour='+end_hour+'&end_min='+end_min+'&end_sec='+end_sec
+		
+		try:
+			r = requests.get(gpac_url, timeout=5)
+			online = 1
+		except requests.exceptions.Timeout:
+			print port_num_var[pI] + ' is not currently online'
+			online = 0
+		except requests.exceptions:
+			print port_num_var[pI] + 'not currently online'
+			online = 0
+
+		if online:
+
+			f = open(csvFileName, 'w')
+			f.write(r.text)
+			f.close()
+
+			start_year = end_year
+			start_month = end_month
+			start_day = end_day
+			start_hour = end_hour
+			start_min = end_min
+			start_sec = end_sec
+
+			# open csv with data (will be a HTTP call to GPAC in the future)
+			f = open(csvFileName, 'rU')
+			csv_f = csv.reader(f)
+
+			# get field names from first row of csv file
+			fieldnames = csv_f.next()
+
+			# establish the array to hold the bulk load documents
+			docs = [[]]
+
+			# establish counters to break up the loads into smaller chunks
+			arrayCounter = 0
+			docsCounter = 0
+
+			# set the fieldnames as the dictionary keys
+			reader = csv.DictReader(f, fieldnames)
+
+			# read JSONconfigFile
+			jsonF = open(JSONconfigFile, 'rU')
+			jsonConfig = csv.reader(jsonF)
+
+			# get field names from first row of JSONconfigFile
+			JSONfieldnames = jsonConfig.next()
+
+			lastDoc = {}
+
+			for row in reader:
+				jsonDocument = {}
+				for fieldname in JSONfieldnames:
+					if fieldname in row:
+						jsonDocument[fieldname] = row[fieldname]
+
+				# append the jsonDocument to the array of json docs
+				docs[arrayCounter].append(jsonDocument)
+				docsCounter += 1
+				totalDocs +=1 
+
+				# if the number of docs gets larger than the bulk_load size, break into a new chunk
+				if docsCounter > 999:
+					arrayCounter += 1
+					docsCounter = 0
+					docs.append([])
+
+				# print jsonDocument
+				lastDoc = jsonDocument
+
+			# print docs
+
+			global loopCounter
+			loopCounter += 1
+
+			print 'This load added '+str(totalDocs)+' documents in '+db_name_var[pI]
+
+			arrayCounter = 0
+			for bulkDocs in docs:
+				response = requests.post(
+					baseUri+'/_bulk_docs',
+					data=json.dumps({
+						"docs": docs[arrayCounter]
+						}),
+					auth=creds,
+					headers={"Content-Type": "application/json"}
+					)
+				arrayCounter += 1
+
+			postCloudantDate([end_year, end_month, end_day, end_hour, end_min, end_sec], db_name_var[pI])
 
 # pull start date from Cloudant if exists
-def getCloudantDate():
+def getCloudantDate(db_name_date):
 	global start_year
 	global start_month
 	global start_day
@@ -219,6 +198,8 @@ def getCloudantDate():
 	global start_min
 	global start_sec
 	global restart_flag
+
+	baseUri = "https://{0}.cloudant.com/{1}".format(username, db_name_date)
 
 	design_doc = requests.get(
 		baseUri+'/_design/views',
@@ -240,19 +221,12 @@ def getCloudantDate():
 			if len(cTime[i])<2:
 				cTime[i]='0'+cTime[i]
 		start_year = cDate[0]
-		print 'this is the start_year: '+start_year
 		start_month = cDate[1]
-		print 'this is the start_year: '+start_month
 		start_day = cDate[2]
-		print 'this is the start_year: '+start_day
 		start_hour = cTime[0]
-		print 'this is the start_year: '+start_hour
 		start_min = cTime[1]
-		print 'this is the start_year: '+start_min
 		start_sec = cTime[2]
-		print 'this is the start_year: '+start_sec
 
-		print 'here is the date '+ start_year+start_month+start_day+start_hour+start_min+start_sec
 	else:
 		design_doc = requests.put(
 			baseUri+'/_design/views',
@@ -271,6 +245,13 @@ def getCloudantDate():
 			headers={"Content-Type": "application/json"}
 			)
 
+		start_year = '2015'
+		start_month = '08'
+		start_day = '00'
+		start_hour = '00'
+		start_min = '00'
+		start_sec = '00'
+
 		cloudant_date_doc = requests.post(
 			baseUri,
 			data=json.dumps({
@@ -281,12 +262,14 @@ def getCloudantDate():
 			headers={"Content-Type": "application/json"}
 			)
 	restart_flag = 0
+	return (start_year, start_month, start_day, start_hour, start_min, start_sec)
 
-def postCloudantDate(end_list):
+def postCloudantDate(end_list, db_name_post):
 	for i in range(0,6):
 		if len(end_list[i])<2:
 			end_list[i]='0'+end_list[i]
-	print end_list
+
+	baseUri = "https://{0}.cloudant.com/{1}".format(username, db_name_post)
 	cloudant_date_doc = requests.post(
 		baseUri,
 		data=json.dumps({
@@ -296,14 +279,16 @@ def postCloudantDate(end_list):
 		headers={"Content-Type": "application/json"}
 		)
 
-	print cloudant_date_doc.text
-
 try:
   print("Start serving at port %i" % PORT)
-
-  loadData()
-
+  loadData(port_num, db_name)
+  while 1:
+  	scheduler.enter(120, 1, loadData, (port_num, db_name))
+  	scheduler.run()
   httpd.serve_forever()
+  
+
 except KeyboardInterrupt:
   pass
 httpd.server_close()
+
