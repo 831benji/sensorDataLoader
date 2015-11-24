@@ -14,10 +14,10 @@ except ImportError:
 
 csvFileName = 'output.csv'
 JSONconfigFile = 'dataConfig.csv'
-username = 'bsp-goldengate'
-password = 'chicken8898'
-db_name = ['bus_957_ggtbus1', 'bus_956_ggtbus2']
-port_num = ['166.184.185.1:40001', '166.184.185.159:40001']
+username = 'bsp'
+password = 'demoPass'
+db_name = ['bus_3', 'bus_4', 'bus_5']
+port_num = ['sct.gpacsys.net', '166.184.185.1:40001', '166.184.185.159:40001']
 
 scheduler = sched.scheduler(time.time, time.sleep)
 
@@ -31,7 +31,7 @@ gpac_password = 'benperl1'
 log_type = 'DATA'
 
 start_year = '2015'
-start_month = '08'
+start_month = '10'
 start_day = '00'
 start_hour = '00'
 start_min = '00'
@@ -78,7 +78,7 @@ def loadData(port_num_var, db_name_var):
 			auth=creds
 			)
 		
-		cloudantDateTime = getCloudantDate(db_name_var[pI])
+		cloudantDateTime = getCloudantDate(db_name_var[pI], port_num_var[pI])
 
 		print 'Last run was at: '
 		print cloudantDateTime
@@ -98,6 +98,7 @@ def loadData(port_num_var, db_name_var):
 		end_sec = str(currentTime.tm_sec)
 
 		gpac_url = 'http://'+port_num_var[pI]+'/query.php?username='+gpac_username+'&password='+gpac_password+'&logtype='+log_type+'&format=$2&start_year='+start_year+'&start_month='+start_month+'&start_day='+start_day+'&start_hour='+start_hour+'&start_min='+start_min+'&start_sec='+start_sec+'&end_year='+end_year+'&end_month='+end_month+'&end_day='+end_day+'&end_hour='+end_hour+'&end_min='+end_min+'&end_sec='+end_sec
+		print gpac_url
 		
 		try:
 			r = requests.get(gpac_url, timeout=5)
@@ -149,7 +150,10 @@ def loadData(port_num_var, db_name_var):
 			lastDoc = {}
 
 			for row in reader:
-				jsonDocument = {}
+				jsonDocument = {
+				"bus_id":port_num_var[pI],
+				"notify_flag":'false'
+				}
 				for fieldname in JSONfieldnames:
 					if fieldname in row:
 						jsonDocument[fieldname] = row[fieldname]
@@ -187,10 +191,10 @@ def loadData(port_num_var, db_name_var):
 					)
 				arrayCounter += 1
 
-			postCloudantDate([end_year, end_month, end_day, end_hour, end_min, end_sec], db_name_var[pI])
+			postCloudantDate([end_year, end_month, end_day, end_hour, end_min, end_sec], db_name_var[pI], port_num_var[pI])
 
 # pull start date from Cloudant if exists
-def getCloudantDate(db_name_date):
+def getCloudantDate(db_name_date, port_num_date):
 	global start_year
 	global start_month
 	global start_day
@@ -202,13 +206,13 @@ def getCloudantDate(db_name_date):
 	baseUri = "https://{0}.cloudant.com/{1}".format(username, db_name_date)
 
 	design_doc = requests.get(
-		baseUri+'/_design/views',
+		baseUri+'/_design/'+port_num_date+'_views',
 		auth=creds
 		)
 
 	if '_id' in json.loads(design_doc.text):
 		cloudant_date_doc = requests.get(
-			baseUri+'/_design/views/_view/dateKeeper?descending=true&limit=1',
+			baseUri+'/_design/'+port_num_date+'_views/_view/dateKeeper?descending=true&limit=1',
 			auth=creds
 			)
 		cloudant_date = json.loads(cloudant_date_doc.text)["rows"][0]["key"]
@@ -229,15 +233,24 @@ def getCloudantDate(db_name_date):
 
 	else:
 		design_doc = requests.put(
-			baseUri+'/_design/views',
+			baseUri+'/_design/'+port_num_date+'_views',
 			data=json.dumps({
-				"_id": "_design/views",
 				"views": {
 				"parse_date": {
-				"map": "function (doc) { if (doc.Timestamp) { emit(doc.Timestamp, doc); } }"
+				"map": "function (doc) { if (doc.Timestamp && doc.bus_id=='"+port_num_date+"') { emit(doc.Timestamp, doc); } }"
 				},
 				"dateKeeper": {
-				"map": "function (doc) { if (doc.cloudant_date) { emit(doc.cloudant_date) } }"
+				"map": "function (doc) { if (doc.cloudant_date && doc.bus_id=='"+port_num_date+"') { emit(doc.cloudant_date) } }"
+				},
+			    "counts_by_day": {
+			    "map": "function(doc) {\n var d = new Date(Date.parse(doc.Timestamp.split(' ')[0])); if(doc.Timestamp && doc.bus_id=='"+port_num_date+"') { emit([d.getFullYear(), d.getMonth()+1, d.getDate()], doc.Timestamp);}\n}",
+			    "reduce": "_count"
+			    }
+			    },
+				"indexes": {
+				"by_device": {
+				"analyzer": "standard",
+				"index": "function(doc) { \n index('timestamp', doc.Timestamp, {'store':true}); \n    index ('device', doc.Device_Name, {'store':true}); \n   index ('value', doc.Value, {'store':true}); \n   index ('unit', doc.Unit, {'store':true}); \n   index ('bus_id', doc.bus_id, {'store':true});}"
 				}
 				}
 				}),
@@ -246,7 +259,7 @@ def getCloudantDate(db_name_date):
 			)
 
 		start_year = '2015'
-		start_month = '08'
+		start_month = '10'
 		start_day = '00'
 		start_hour = '00'
 		start_min = '00'
@@ -256,7 +269,8 @@ def getCloudantDate(db_name_date):
 			baseUri,
 			data=json.dumps({
 				"cloudant_date": 
-				start_year+"-"+start_month+"-"+start_day+" "+start_hour+":"+start_min+":"+start_sec
+				start_year+"-"+start_month+"-"+start_day+" "+start_hour+":"+start_min+":"+start_sec,
+				"bus_id":port_num_date
 				}),
 			auth=creds,
 			headers={"Content-Type": "application/json"}
@@ -264,7 +278,7 @@ def getCloudantDate(db_name_date):
 	restart_flag = 0
 	return (start_year, start_month, start_day, start_hour, start_min, start_sec)
 
-def postCloudantDate(end_list, db_name_post):
+def postCloudantDate(end_list, db_name_post, port_num_post):
 	for i in range(0,6):
 		if len(end_list[i])<2:
 			end_list[i]='0'+end_list[i]
@@ -273,7 +287,8 @@ def postCloudantDate(end_list, db_name_post):
 	cloudant_date_doc = requests.post(
 		baseUri,
 		data=json.dumps({
-			"cloudant_date": end_list[0]+"-"+end_list[1]+"-"+end_list[2]+" "+end_list[3]+":"+end_list[4]+":"+end_list[5]
+			"cloudant_date": end_list[0]+"-"+end_list[1]+"-"+end_list[2]+" "+end_list[3]+":"+end_list[4]+":"+end_list[5],
+			"bus_id":port_num_post
 			}),
 		auth=creds,
 		headers={"Content-Type": "application/json"}
